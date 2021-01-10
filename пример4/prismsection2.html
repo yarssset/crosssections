@@ -1,0 +1,683 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+    <META http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>Модель МК</title>
+    <link type="text/css" rel="stylesheet" href="./files/mathkit_scripts/style.css"></link>
+    <script type="text/javascript" language="JavaScript">
+        // Здесь можно менять конфигурационные параметры
+        var _scaleDown = true; //Уменьшать модель, если окно меньше
+        var _fullscreen = window.matchMedia("(min-device-width:2000px)").matches;  //Увеличивать модель, если окно больше
+        var _allVisible = true; //Видна целиком вся модель
+        var _modelWidth = 1104; //Ширина модели в пикселях
+        var _modelHeight = 684; //Высота модели в пикселях
+    </script>
+    <script type="text/javascript" language="javascript">
+
+        //CustomEvent polyfill for IE
+        (function () {
+            if ( typeof window.CustomEvent === "function" ) return false;
+
+            function CustomEvent ( event, params ) {
+                params = params || { bubbles: false, cancelable: false, detail: undefined };
+                var evt = document.createEvent( 'CustomEvent' );
+                evt.initCustomEvent( event, params.bubbles, params.cancelable, params.detail );
+                return evt;
+            }
+
+            CustomEvent.prototype = window.Event.prototype;
+            window.CustomEvent = CustomEvent;
+        })();
+
+        //"optimized" events via requestAnimationFrame
+        (function() {
+            var throttle = function(type, name, obj) {
+                obj = obj || window;
+                var running = false;
+                var func = function() {
+                    if (running) { return; }
+                    running = true;
+                    requestAnimationFrame(function() {
+                        obj.dispatchEvent(new CustomEvent(name));
+                        running = false;
+                    });
+                };
+                obj.addEventListener(type, func);
+            };
+
+            throttle("resize", "optimizedResize");
+        })();
+
+
+        (function(){
+            //turn off scaling as per MK7.0
+            var flagFixedScale = false;
+            var flagScaleDown;
+            var flagFullScreen;
+            var flagAllVisible;
+
+            var fixedRatio = 100;  //default fixed scale for MK7.0
+            var scaleButtonRightShift = 50;
+            var initialIframeWidth;
+            var initialIframeHeight;
+            var methodsLinkHeight;
+
+            var modelIframe;
+            var methodsLink;
+            var divDropdown;
+            var buttons;
+            var bottomSpacer;
+            var bottomSpacerMargin;
+            var scaleDropdown;
+
+            var aDivId = ["baseHtmlCaption", "baseHtmlProblem"];
+            var aWrapperId = ["baseCaptionWrapper", "baseProblemWrapper"];
+            var aWrapperInitial = [];
+
+            function fOptimizedResizeListener(){
+                updateContainerSizes();
+            }
+
+            function fUnloadListener(){
+                window.removeEventListener("optimizedResize", fOptimizedResizeListener, false);
+                window.removeEventListener("unload", fUnloadListener, false);
+            }
+
+            function initResizing(_initialIframeWidth, _initialIframeHeight, _flagScaleDown, _fullScreen, _flagAllVisible){
+                flagScaleDown = _flagScaleDown;
+                flagFullScreen = _fullScreen;
+                flagAllVisible = _flagAllVisible;
+                initialIframeWidth = _initialIframeWidth;
+                initialIframeHeight = _initialIframeHeight;
+
+                window.addEventListener("optimizedResize", fOptimizedResizeListener, false);
+                window.addEventListener("unload", fUnloadListener, false);
+                window.addEventListener("click",fDropdownMenuListener,false);
+
+                document.body.style.overflow = (flagAllVisible && flagScaleDown && !flagFixedScale) ? "hidden" : "auto";
+                //
+                modelIframe = document.getElementById("baseHtmlIframe");
+                divDropdown = document.getElementById("dropdownWrapper");
+                buttons = document.getElementsByClassName("buttons")[0];
+                scaleDropdown = document.getElementById("scaleDropdown");
+                //
+                methodsLink = document.getElementById("methodsLink");
+                methodsLinkHeight = (methodsLink != null) ? methodsLink.offsetHeight : 0;
+                //
+                for(var i=0; i<aWrapperId.length; i++){
+                    var wrapper = document.getElementById(aWrapperId[i]);
+                    aWrapperInitial.push((wrapper != null) ? wrapper.cloneNode(true) : null);
+                }
+                //
+                if(modelIframe != null){
+                    bottomSpacer = document.createElement("div");
+                    bottomSpacer.id = "bottomSpacer";
+                    bottomSpacer.style.margin = "0px";
+                    bottomSpacer.style.padding = "0px";
+                    bottomSpacerMargin = 0;
+                    for(var currElement = modelIframe.parentElement; currElement != document.body; currElement = currElement.parentElement)
+                        bottomSpacerMargin += parseInt(window.getComputedStyle(currElement).marginBottom);
+                    modelIframe.parentNode.appendChild(bottomSpacer);
+                }
+
+                updateContainerSizes();
+                document.body.style.visibility = "visible";
+                document.getElementById("progressGif").style.visibility="hidden";
+            }
+
+            function updateContainerSizes(){
+                //find model container that is one step short of <body> and calculate total margin/padding/border widths throughout the DOM hierarchy
+                var modelTopContainer = modelIframe;
+                var modelTotalMargin = {left: 0, right: 0, top: 0, bottom: 0};
+                var modelTotalPadding = {left: 0, right: 0, top: 0, bottom: 0};
+                var modelTotalBorder = {left: 0, right: 0, top: 0, bottom: 0};
+                if (modelIframe != null) {
+                    var prev = modelTopContainer;
+                    while (modelTopContainer != document.body) {
+                        var styleCurr = window.getComputedStyle(modelTopContainer);
+
+                        modelTotalMargin.left += parseInt(styleCurr.marginLeft);
+                        modelTotalPadding.left += parseInt(styleCurr.paddingLeft);
+                        modelTotalBorder.left += parseInt(styleCurr.borderLeftWidth);
+
+                        modelTotalMargin.right += parseInt(styleCurr.marginRight);
+                        modelTotalPadding.right += parseInt(styleCurr.paddingRight);
+                        modelTotalBorder.right += parseInt(styleCurr.borderRightWidth);
+
+                        modelTotalMargin.top += parseInt(styleCurr.marginTop);
+                        modelTotalPadding.top += parseInt(styleCurr.paddingTop);
+                        modelTotalBorder.top += parseInt(styleCurr.borderTopWidth);
+
+                        modelTotalMargin.bottom += parseInt(styleCurr.marginBottom);
+                        modelTotalPadding.bottom += parseInt(styleCurr.paddingBottom);
+                        modelTotalBorder.bottom += parseInt(styleCurr.borderBottomWidth);
+
+                        prev = modelTopContainer;
+                        modelTopContainer = modelTopContainer.parentNode;
+                    }
+                    modelTopContainer = prev;
+                }
+                var availableWidth =
+                        ((flagAllVisible && flagScaleDown && !flagFixedScale) ? document.documentElement.clientWidth : window.innerWidth) -
+                        (modelTotalMargin.left + modelTotalBorder.left + modelTotalPadding.left + modelTotalMargin.right + modelTotalBorder.right + modelTotalPadding.right);
+                var availableHeight = window.innerHeight - (modelTotalMargin.top + modelTotalBorder.top + modelTotalPadding.top + modelTotalMargin.bottom + modelTotalBorder.bottom + modelTotalPadding.bottom);
+
+                var w;
+                var h;
+                if(flagFixedScale){
+                    w = initialIframeWidth * fixedRatio / 100.0;
+                    h = initialIframeHeight * fixedRatio/ 100.0;
+                    document.body.style.overflow = "auto";
+                }else{
+                    if (initialIframeWidth * availableHeight < initialIframeHeight * availableWidth) {
+                        w = 1.0 * initialIframeWidth * availableHeight / initialIframeHeight;
+                        h = availableHeight;
+                    } else {
+                        w = availableWidth;
+                        h = 1.0 * initialIframeHeight * availableWidth / initialIframeWidth;
+                    }
+
+                    if (!flagFullScreen) {
+                        if (w > initialIframeWidth)
+                            w = initialIframeWidth;
+                        if (h > initialIframeHeight)
+                            h = initialIframeHeight;
+                    }
+                    document.body.style.overflow = (flagAllVisible && flagScaleDown && !flagFixedScale) ? "hidden" : "auto";
+                }
+
+                var aDiv = [];
+                var aWrapper = [];
+                var wrapper, wrapperInitial;
+
+                for(var i=0; i<aWrapperInitial.length; i++){
+                    wrapperInitial = aWrapperInitial[i];
+                    if(wrapperInitial!=null){
+                        wrapper = document.getElementById(aWrapperId[i]);
+                        wrapper.parentNode.insertBefore(wrapperInitial, wrapper);
+                        wrapper.parentNode.removeChild(wrapper);
+                        wrapper = null;
+                        aWrapperInitial[i] = wrapperInitial.cloneNode(true);
+                        aDiv.push(document.getElementById(aDivId[i]));
+                        aWrapper.push(wrapperInitial);
+                    }else{
+                        aDiv.push(null);
+                        aWrapper.push(null);
+                    }
+                }
+
+                var iterationsLimit = 10;
+
+                var ratio;
+
+                for(var iterations = 1; iterations>=0 && (iterationsLimit--)>0;){
+                    if(flagFixedScale){
+                        ratio = fixedRatio/100.0;
+                    } else {
+                        ratio = w/initialIframeWidth;
+                        if(ratio<1.0 && !flagScaleDown){
+                            w = initialIframeWidth;
+                            h = initialIframeHeight;
+                            ratio = 1.0;
+                            iterations = 0;
+                        }
+                    }
+                    var dy = 0;
+                    var docClientWidth = document.documentElement.clientWidth;
+
+                    for(var j=0; j<aDiv.length; j++) {
+                        var div = aDiv[j];
+                        var wrapper = aWrapper[j];
+                        if (div == null)
+                            continue;
+                        var divStyle = div.style;
+                        divStyle.width = "";
+                        divStyle.height = "";
+                        divStyle.transform = divStyle.WebkitTransform = "";
+                        wrapper.style.height = "";
+                        var divOffsetWidth = div.offsetWidth;
+
+                        divStyle.transformOrigin = divStyle.WebkitTransformOrigin = "50% 0" ;
+                        var previousBottom;
+                        if(j>0)
+                            previousBottom = aDiv[j-1].offsetTop+aDiv[j-1].offsetHeight*ratio;
+                        else
+                            previousBottom = div.offsetTop;
+
+                        //if set for ratio>1, the style height would cause the problem div's bottom to overlay the modelIframe's top effectively disabling the top tool bar of the model
+                        //hence dy
+                        //special case for ratio=1.0 in order to minimize transformations
+                        if(Math.abs(ratio-1.0)<1E-8){
+                            divStyle.transform = divStyle.WebkitTransform = "none";
+                            wrapper.style.height = wrapper.offsetHeight+"px";
+                        }else if (ratio > 1.0) {
+                            dy = (div.offsetTop - previousBottom) * (ratio - 1.0);
+                            divStyle.transform = divStyle.WebkitTransform = "scale(" + ratio + ") translate("+initialIframeWidth*(ratio-1.0)/(2.0*ratio)+"px , " + dy/ratio + "px)";
+                            wrapper.style.height = (wrapper.offsetHeight * ratio)+ dy + "px";
+                        } else {
+                            dy = (div.offsetTop - previousBottom) * (ratio - 1.0);
+                            divStyle.transform = divStyle.WebkitTransform = "scale(" + ratio + ") translate("+initialIframeWidth*(ratio-1.0)/(2.0*ratio)+"px , " + dy/ratio + "px)";
+                            wrapper.style.height = (wrapper.offsetHeight * ratio)+ dy + "px";
+                        }
+
+                        if(docClientWidth>=divOffsetWidth*ratio){
+                            divStyle.marginLeft = (docClientWidth-divOffsetWidth*ratio)/2+"px";
+                            divStyle.marginRight = (docClientWidth-divOffsetWidth*ratio)/2+"px";
+                        }else {
+                            divStyle.marginLeft = "0px";
+                            divStyle.marginRight = "0px";
+                        }
+                    }
+
+                    if(methodsLink != null) {
+                        var methodsLinkStyle = methodsLink.style;
+                        var baseHtmlCaptionStyle = document.getElementById("baseHtmlCaption").style;
+                        methodsLinkStyle.transform = baseHtmlCaptionStyle.transform;
+                        methodsLinkStyle.WebkitTransform = baseHtmlCaptionStyle.WebkitTransform;
+                        methodsLinkStyle.transformOrigin = baseHtmlCaptionStyle.transformOrigin;
+                        methodsLinkStyle.WebkitTransformOrigin = baseHtmlCaptionStyle.WebkitTransformOrigin;
+                        methodsLinkStyle.marginLeft = baseHtmlCaptionStyle.marginLeft;
+                        methodsLinkStyle.marginRight = baseHtmlCaptionStyle.marginRight;
+                    }
+
+                    if(modelIframe != null){
+                        modelIframe.style.width = (w|0)+"px";
+                        modelIframe.style.height = (h|0)+"px";
+                        //special case for ratio=1.0 in order to minimize transformations
+                        if(Math.abs(1.0-ratio)<1E-8){
+                            modelIframe.style.transform = modelIframe.style.WebkitTransform = "none";
+                            bottomSpacer.style.display = "none";
+                        }else if(ratio<1.0){
+                            modelIframe.style.transform = modelIframe.style.WebkitTransform = "none";
+                            bottomSpacer.style.display = "none";
+                        }else{
+                            modelIframe.style.transform = modelIframe.style.WebkitTransform = "translate(0px, "+dy+"px)";
+                            if(!flagAllVisible || flagFixedScale){
+                                bottomSpacer.style.display = "block";
+                                bottomSpacer.style.marginBottom = (dy+bottomSpacerMargin)+"px";
+                            }else
+                                bottomSpacer.style.display = "none";
+                        }
+                    }
+
+                    divDropdown.style.transform = divDropdown.style.WebkitTransform = "scale("+ratio+")";
+                    buttons.style.transform = buttons.style.WebkitTransform = "scale("+ratio+")";
+                    var divDropdownStyle = window.getComputedStyle(document.getElementById("baseHtmlCaption"));
+                    var dropdownButton = document.getElementsByClassName("dropdown-button")[0];
+                    divDropdown.style.top = aDiv[0].offsetTop+(_getBaseline(divDropdownStyle.fontFamily,divDropdownStyle.fontSize,divDropdownStyle.transform)-dropdownButton.offsetHeight*0.5)*ratio;
+                    buttons.style.top = divDropdown.style.top;
+                    var divDropdownLeft = modelIframe.offsetLeft+modelIframe.offsetWidth-divDropdown.offsetWidth;
+                    if(Math.abs(scaleButtonRightShift)>1E-8)
+                        divDropdownLeft = divDropdownLeft+(dropdownButton.offsetWidth*0.5-scaleButtonRightShift)*ratio/2.0;
+                    if(divDropdownLeft+divDropdown.offsetWidth*ratio>document.documentElement.clientWidth){
+                        divDropdown.style.left = "";
+                        divDropdown.style.right = "0px";
+                        divDropdown.style.position = "fixed";
+
+                        buttons.style.position = "fixed";
+                        buttons.style.left = "0px";
+                        buttons.style.right = "";
+                    }else {
+                        divDropdown.style.right = "";
+                        divDropdown.style.left = divDropdownLeft;
+                        divDropdown.style.position = "absolute";
+
+                        buttons.style.position = "absolute";
+                        buttons.style.right = "";
+                        buttons.style.left = modelIframe.offsetLeft;
+                    }
+
+
+                    if(iterations==0)
+                        break;
+
+                    //for fixed scale we need at least 2 iterations (for correct left and right margins), because resulting height maybe bigger than client height and scrollbars will appear
+                    if(flagFixedScale){
+                        iterations--;
+                        continue;
+                    }
+                    //is there a scroller?
+                    var verticalScrollerWidth = window.innerWidth - document.documentElement.clientWidth;
+                    //in some OS's, e.g. Android, there's no scroller shown but the document height still exceeds the window height
+                    var totalHeightDocument = Math.max(
+                            document.body.scrollHeight,
+                            document.body.offsetHeight,
+                            document.documentElement.clientHeight,
+                            document.documentElement.scrollHeight,
+                            document.documentElement.offsetHeight
+                    );
+
+                    var totalHeight = totalHeightDocument;
+                    //In Safari, when zoomed in, document.body.scrollHeight/offsetHeight, document.documentElement.clientHeight/scrollHeight/offsetHeight do not change
+                    //causing the ratio to go all the way down to practically zero. Hence totalHeight is determined by the actual elements' positions and sizes
+                    if(modelIframe != null){
+                        totalHeight = modelIframe.getBoundingClientRect().bottom+modelTotalMargin.bottom+methodsLinkHeight*ratio;
+                        if(aDiv.length>0 && aDiv[0] != null)
+                            totalHeight -= aDiv[0].getBoundingClientRect().top-parseInt(window.getComputedStyle(aDiv[0]).marginTop);
+                    }
+
+                    var flagScroller = totalHeight>window.innerHeight;
+
+                    if(flagScroller && w>verticalScrollerWidth){
+                        if((availableWidth-w)<verticalScrollerWidth){
+                            w = availableWidth-verticalScrollerWidth;
+                            h = 1.0*initialIframeHeight*w/initialIframeWidth;
+                            if(!flagAllVisible )
+                                iterations--;
+                        }else if(flagAllVisible){
+                            w *=  1.0*window.innerHeight/totalHeight;
+                            h = 1.0*initialIframeHeight*w/initialIframeWidth;
+                        }else
+                            break;
+                    }else
+                        break;
+                }
+
+            }
+
+            function setScaleMode(_scale, _isScaleDown, _isFullscreen, _isAllVisible ){
+                if(_scale == null)
+                    flagFixedScale = false;
+                else
+                    flagFixedScale = true;
+                flagScaleDown = _isScaleDown;
+                flagFullScreen = _isFullscreen;
+                flagAllVisible = _isAllVisible;
+                fixedRatio = _scale;
+                updateContainerSizes();
+            }
+
+            function showScaleDropdown() {
+                if(scaleDropdown.style.visibility=="visible"){
+                    scaleDropdown.style.visibility='hidden';
+                    _hideChecked();
+                }else{
+                    scaleDropdown.style.visibility='visible';
+                    if(flagFixedScale){
+                        document.getElementById("sgAuto").style.color= "black";
+                        document.getElementById("sgFixed").style.color= "#1e69cb";
+                        var cbName = "cbScaleTo"+fixedRatio;
+                        document.getElementById(cbName).style.visibility="visible";
+                    } else {
+                        document.getElementById("sgAuto").style.color= "#1e69cb";
+                        document.getElementById("sgFixed").style.color= "black";
+                        if(flagFullScreen){
+                            document.getElementById("cbAutoScale").style.visibility="visible";
+                        } else {
+                            document.getElementById("cbAutoShrink").style.visibility="visible";
+                        }
+                    }
+                }
+
+            }
+
+            function fDropdownMenuListener(event) {
+                var classList = event.target.classList;
+                if (!classList.contains('dropdown-button') || classList.contains("scale-option") || classList.contains("dropdown-menu") || classList.contains("checkedMark")) {
+                    scaleDropdown.style.visibility='hidden';
+                    _hideChecked();
+                }
+            }
+
+            function _hideChecked(){
+                var optionsCheckboxes = document.getElementsByClassName("checkedMark");
+                for(var i=0;i<optionsCheckboxes.length;i++){
+                    optionsCheckboxes[i].style.visibility="hidden";
+                }
+            };
+
+            function _getBaseline(fontFamily,fontSize, transform){
+                var text = document.createElement("span");
+                text.style.fontFamily = fontFamily;
+                text.style.fontSize = fontSize;
+                text.appendChild(document.createTextNode("Q"));
+                var block = document.createElement("div");
+                block.style.display = "inline-block";
+                block.style.width = "1px";
+                block.style.height = "0px";
+                var div = document.createElement("div");
+                div.appendChild(text);
+                div.appendChild(block);
+                var body = document.body;
+                body.appendChild(div);
+                div.style.transform = transform;
+                block.style.verticalAlign= "baseline";
+                var ascent = block.offsetTop - text.offsetTop;
+
+                div.removeChild(text);
+                div.removeChild(block);
+                body.removeChild(div);
+                return ascent;
+            }
+
+            window.initResizing = initResizing;
+            window.setScaleMode = setScaleMode;
+            window.showScaleDropdown = showScaleDropdown;
+        })();
+
+    </script>
+    <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML" onerror="initResizing(_modelWidth, _modelHeight, _scaleDown, _fullscreen, _allVisible)"></script>	
+	<script type="text/x-mathjax-config">MathJax.Hub.Config({tex2jax: { inlineMath: [['$','$'], ['\\(','\\)']] }});MathJax.Hub.Queue(["initResizing",window , window._modelWidth, window._modelHeight, window._scaleDown, window._fullscreen, window._allVisible]);</script>
+    <style type="text/css">
+        body	{
+            overflow: hidden;
+            margin: 0;
+            visibility: hidden;}
+        body, td	{
+            font-family: arial;
+            font-size: 14px;
+            line-height: 1.3em;
+            color: Darkslategray;	}
+        td {
+            padding: 20px;
+        }
+        .small	{
+            font-size: 12px;	}
+        a:link, a:visited	{
+            color: Slateblue;	}
+        a:hover	{
+            color: Firebrick;	}
+        sup	{
+            font-size: 10px;	}
+        iframe {
+            width: 1104px;
+            height: 684px;
+            margin: 5px; }
+        .caption	{
+            font-family: verdana,arial;
+            font-size: 24px;
+            line-height: 1.2em;
+            color: #701e22;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 14px;
+            margin-bottom: 0px;
+            width: 1104px; }
+        .problem {
+            margin-top: 0;
+            margin-right: auto;
+            margin-left: auto;
+            margin-bottom: 0;
+            white-space: normal;
+            width: 1104px; }
+        .div-wrapper {
+            padding: 0;
+            margin: 0;
+            overflow: visible;
+            width: 100%;}
+        .stix {
+            font-family: Stix, Stix Math;
+        }
+        .dropdown {
+            position: absolute;
+            /** Make it fit tightly around it's children */
+            display: inline-block;
+            float: right;
+            transform-origin: 100% 0%;
+            -webkit-transform-origin: 100% 0%;
+        }
+        .dropdown-button {
+            position: relative;
+            cursor: pointer;
+            width: 52px;
+            height: 36px;
+            transform-origin: 100% 0%;
+            -webkit-transform-origin: 100% 0%;
+            transform: scale(0.5);
+            -webkit-transform: scale(0.5);
+            opacity:0.3;
+        }
+        .dropdown-button:hover {
+            position: relative;
+            cursor: pointer;
+            width: 52px;
+            height: 36px;
+            transform-origin: 100% 0%;
+            -webkit-transform-origin: 100% 0%;
+            transform: scale(0.5);
+            -webkit-transform: scale(0.5);
+            /**transition: opacity .5s;**/
+            opacity:0.6;
+        }
+        .dropdown-button:focus{
+            outline: 0;
+        }
+        .dropdown .dropdown-menu {
+            position: absolute;
+            top: 50%;
+            right: 0;
+            /** Allow no empty space between this and .dropdown */
+            margin: 0;
+            visibility:hidden;
+            list-style:none;
+            padding:5px;
+            background:white;
+            white-space:nowrap;
+        }
+        #scaleDropdown{
+            background-color: #f0f0f0;
+            border: 2px solid #c8c7cc;
+        }
+        .scaleOption{
+            width: 250px;
+            border:none;
+            white-space:nowrap;
+            text-align:left;
+            background:transparent;
+            outline:0px;
+            pointer:hand;
+            font-size:18px;
+            font-family:verdana,arial;
+        }
+        .scaleOptionGroup{
+            width: 250px;
+            border:none;
+            white-space:nowrap;
+            text-align:left;
+            background:transparent;
+            outline:0px;
+            pointer:hand;
+            font-size:18px;
+            font-family:verdana,arial;
+            padding-left:0px;
+        }
+        .checkedMark {
+            width:10px;
+            height:10px;
+            border-left:solid 3px #1e69cb;
+            border-bottom:solid 3px #1e69cb;
+            transform-origin:50% 50%;
+            -webkit-transform-origin:50% 50%;
+            transform:rotate(-45deg) translate(5px, -5px);
+            -webkit-transform:rotate(-45deg) translate(5px, -5px);
+            background:transparent;
+            border-right:none;
+            border-top:none;
+            visibility:hidden;
+        }
+        #methodsLink{
+            display: none;
+            width: 1104px;
+        }
+        #progressGif{
+            visibility: visible;
+            text-align: center;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .buttons{
+            transform-origin: 0% 0%;
+            -webkit-transform-origin: 0% 0%;
+            transform: scale(0.5);
+            -webkit-transform: scale(0.5);
+            height: 36px;
+        }
+        .buttons-one {
+            opacity:0.3;
+            transform-origin: 0% 0%;
+            -webkit-transform-origin: 0% 0%;
+            transform: scale(0.5);
+            -webkit-transform: scale(0.5);
+        }
+        .buttons-one:hover {
+            opacity:0.6;
+            transform-origin: 0% 0%;
+            -webkit-transform-origin: 0% 0%;
+            transform: scale(0.5);
+            -webkit-transform: scale(0.5);
+        }
+        .buttons-one:focus{
+            outline: 0;
+        }
+    </style>
+</head>
+<body bgcolor="#f0f0f0">
+<div id="progressGif" >
+    <img src="./files/mathkit_scripts/images/progress.gif"/>
+</div>
+<div id="baseCaptionWrapper" class="div-wrapper">
+    <div id="baseHtmlCaption" class="caption" align="center">
+        <div style="margin:0;"><b>Метод переноса секущей плоскости. Сечение призмы</b></div>
+    </div>
+</div>
+
+<div id="baseProblemWrapper" class="div-wrapper">
+    <div id="baseHtmlProblem" class="problem" align="center">
+        <p>
+            В основании прямой призмы ABCDA1B1C1D1 лежит трапеция ABCD, AD||BC,  BAD=60⁰, AB=4, AD=12; На ребре AA1 задана точка Q, на ребре AD-точка K, на ребре BB1-точка P, причем AQ=6, AK=12, PB=4. Длина ребра AA1 равна 12. <br/>А) Построить сечение призмы плоскостью PQK.<br/>Б) Найти угол образованный плоскостью сечения с плоскостью основания.<br/>В) Найти расстояние от точки A до плоскости сечения.
+        </p>
+    </div>
+</div>
+
+<div id="baseModelWrapper" style="padding:0; margin:0; overflow:visible;">
+    <p style="margin:0; text-align:center;">
+        <iframe id="baseHtmlIframe" src="files/prismsection2_base.html" scrolling="no" frameborder="0">
+        </iframe>
+        <div id="methodsLink" class="small" align="center"><a href="http://" target="_blank">Методические рекомендации</a></div>
+    </p>
+</div>
+
+<div class="dropdown" id="dropdownWrapper">
+    <input type="image" src="./files/mathkit_scripts/images/button_model-resize.png" onclick="showScaleDropdown()" class="dropdown-button" alt="Масштаб"/>
+    <ul id="scaleDropdown" class=dropdown-menu>
+        <div class="scaleOptionGroup" id="sgFixed">Фиксированный размер:</div>
+        <li><button class="checkedMark" id="cbScaleTo200"></button><button class="scaleOption"  onclick="setScaleMode(200, _scaleDown, _fullscreen, _allVisible)">200%</button></li>
+        <li><button class="checkedMark" id="cbScaleTo150"></button><button class="scaleOption"  onclick="setScaleMode(150, _scaleDown, _fullscreen, _allVisible)">150%</button></li>
+        <li><button class="checkedMark" id="cbScaleTo125"></button><button class="scaleOption" onclick="setScaleMode(125, _scaleDown, _fullscreen, _allVisible)">125%</button></li>
+        <li><button class="checkedMark" id="cbScaleTo100"></button><button class="scaleOption" onclick="setScaleMode(100, _scaleDown, _fullscreen, _allVisible)">100%</button></li>
+        <li><button class="checkedMark" id="cbScaleTo75"></button><button class="scaleOption"  onclick="setScaleMode(75, _scaleDown, _fullscreen, _allVisible)">75%</button></li>
+        <li><button class="checkedMark" id="cbScaleTo50"></button><button class="scaleOption"  onclick="setScaleMode(50, _scaleDown, _fullscreen, _allVisible)">50%</button></li>
+        <div class="scaleOptionGroup" id="sgAuto">Вписывать модель в окно:</div>
+        <li><button class="checkedMark" id="cbAutoScale"></button><button class="scaleOption"  onclick="setScaleMode(null, _scaleDown, true, _allVisible)">всегда</button></li>
+        <li><button class="checkedMark" id="cbAutoShrink"></button><button class="scaleOption"  onclick="setScaleMode(null, _scaleDown, false, _allVisible)">если окно меньше</button></li>
+    </ul>
+</div>
+<div class="buttons">
+    <input type="image" class="display-board buttons-one" src="./files/mathkit_scripts/images/button_back.png" onclick="history.back();" alt="Назад"/>
+    <input type="image" class="display-board buttons-one" src="./files/mathkit_scripts/images/button_reload.png" onclick="document.getElementById('baseHtmlIframe').contentWindow.reloadSheet();" alt="Перезагрузить"/>
+</div>
+
+</body>
+</html>
